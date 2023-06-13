@@ -1,0 +1,12 @@
+print("Enter plain text:")
+plain_text = input()
+print("Enter key:")
+key = input()
+
+print("Plain Text:")
+print("In ASCII:", plain_text)
+print("In HEX:", plain_text.encode("utf-8").hex())
+print()
+print("Key:")
+print("In ASCII:", key)
+print("In HEX:", key.encode("utf-8").hex())
