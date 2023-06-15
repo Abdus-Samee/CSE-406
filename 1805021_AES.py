@@ -79,9 +79,25 @@ def substitutionByte(state_mat):
 
     return state_mat
 
+
+def inverseSubstitutionByte(state_mat):
+    for i in range(4):
+        for j in range(4):
+            state_mat[i][j] = BitVector(intVal = Sbox.index(state_mat[i][j].intValue()), size = 8)
+
+    return state_mat
+
+
 def shiftRow(state_mat):
     for i in range(4):
         state_mat[i] = state_mat[i][i:] + state_mat[i][:i]
+
+    return state_mat
+
+
+def inverseShiftRow(state_mat):
+    for i in range(4):
+        state_mat[i] = state_mat[i][-i:] + state_mat[i][:-i]
 
     return state_mat
 
@@ -110,11 +126,42 @@ def mixColumn(state_mat):
     return new_state_mat
 
 
-def AESRound(round_no, state_mat):
-    state_mat = substitutionByte(state_mat)
-    state_mat = shiftRow(state_mat)
-    if round_no != 10:
-        state_mat = mixColumn(state_mat)
+def inverseMixColumn(state_mat):
+    fixed_mat = [
+        [BitVector(hexstring="0e"), BitVector(hexstring="0b"), BitVector(hexstring="0d"), BitVector(hexstring="09")],
+        [BitVector(hexstring="09"), BitVector(hexstring="0e"), BitVector(hexstring="0b"), BitVector(hexstring="0d")],
+        [BitVector(hexstring="0d"), BitVector(hexstring="09"), BitVector(hexstring="0e"), BitVector(hexstring="0b")],
+        [BitVector(hexstring="0b"), BitVector(hexstring="0d"), BitVector(hexstring="09"), BitVector(hexstring="0e")]
+    ]
+
+    new_state_mat = []
+    for i in range(4):
+        new_state_row = []
+        for j in range(4):
+            new_state_row.append(BitVector(intVal=0, size=8))
+        new_state_mat.append(new_state_row)
+
+    for i in range(4):
+        for j in range(4):
+            for k in range(4):
+                prod = fixed_mat[i][k].gf_multiply_modular(state_mat[k][j], BitVector(intVal=0x11b, size=9), 8)
+                new_state_mat[i][j] ^= prod
+
+    return new_state_mat
+
+
+def AESRound(round_no, state_mat, type="encrypt"):
+    if type == "encrypt":
+        state_mat = substitutionByte(state_mat)
+        state_mat = shiftRow(state_mat)
+        if round_no != 10:
+            state_mat = mixColumn(state_mat)
+    else:
+        state_mat = inverseShiftRow(state_mat)
+        state_mat = inverseSubstitutionByte(state_mat)
+        state_mat = addRoundKey(state_mat, key_list[10-round_no])
+        if round_no != 10:
+            state_mat = inverseMixColumn(state_mat)
 
     return state_mat
 
@@ -175,6 +222,7 @@ key_list = key_scheduling()
 key_end = time.time()
 
 ## Encryption
+enc_start = time.time()
 state_mat = constructInitStateMat(hex_plain_text)
 state_mat = addRoundKey(state_mat, hex_key)
 
@@ -183,11 +231,31 @@ for i in range(1, 11):
     state_mat = addRoundKey(state_mat, key_list[i])
 
 cipher_text = readCipherText(state_mat)
+enc_end = time.time()
 print("Cipher Text:")
 print("In Hex:", cipher_text)
 print("In ASCII:", bytearray.fromhex(cipher_text).decode('unicode-escape'))
 print()
 
+#Decryption
+dec_start = time.time()
+i = 10
+state_mat = constructInitStateMat(cipher_text)
+state_mat = addRoundKey(state_mat, key_list[i])
+
+for j in range(1, 11):
+    state_mat = AESRound(j, state_mat, "decrypt")
+    i -= 1
+
+decipher_text = readCipherText(state_mat)
+dec_end = time.time()
+print("Deciphered Text:")
+print("In Hex:", decipher_text)
+print("In ASCII:", bytearray.fromhex(decipher_text).decode('unicode-escape'))
+print()
+
 ## Computation Time
 print("Execution time details:")
 print("Key Scheduling :", (key_end-key_start), "seconds")
+print("Encryption Time:", (enc_end-enc_start), "seconds")
+print("Decryption Time:", (dec_end-dec_start), "seconds")
