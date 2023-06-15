@@ -1,4 +1,5 @@
 from BitVector import *
+import time
 
 Sbox = (
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -38,6 +39,126 @@ def g(w, r_c):
     # print(sub_w.get_bitvector_in_hex())
     return sub_w
 
+
+def constructInitStateMat(hex_plain_text):
+    state_mat = []
+    for i in range(0, 8, 2):
+        state_row = []
+        for j in range(4):
+            state_row.append(BitVector(hexstring = hex_plain_text[i+j*8:i+j*8+2]))
+        
+        state_mat.append(state_row)
+    
+    return state_mat
+
+
+def addRoundKey(state_mat, hex_key):
+    round_key_mat = []
+
+    for i in range(0, 8, 2):
+        round_key_row = []
+        for j in range(4):
+            round_key_row.append(BitVector(hexstring=hex_key[i+j*8:i+j*8+2]))
+        
+        round_key_mat.append(round_key_row)
+    
+    new_state_mat = []
+    for i in range(4):
+        new_state_row = []
+        for j in range(4):
+            new_state_row.append(state_mat[i][j]^round_key_mat[i][j])
+        new_state_mat.append(new_state_row)
+
+    return new_state_mat
+
+
+def substitutionByte(state_mat):
+    for i in range(4):
+        for j in range(4):
+            state_mat[i][j] = BitVector(intVal = Sbox[state_mat[i][j].intValue()], size = 8)
+
+    return state_mat
+
+def shiftRow(state_mat):
+    for i in range(4):
+        state_mat[i] = state_mat[i][i:] + state_mat[i][:i]
+
+    return state_mat
+
+
+def mixColumn(state_mat):
+    fixed_mat = [
+        [BitVector(hexstring="02"), BitVector(hexstring="03"), BitVector(hexstring="01"), BitVector(hexstring="01")],
+        [BitVector(hexstring="01"), BitVector(hexstring="02"), BitVector(hexstring="03"), BitVector(hexstring="01")],
+        [BitVector(hexstring="01"), BitVector(hexstring="01"), BitVector(hexstring="02"), BitVector(hexstring="03")],
+        [BitVector(hexstring="03"), BitVector(hexstring="01"), BitVector(hexstring="01"), BitVector(hexstring="02")]
+    ]
+
+    new_state_mat = []
+    for i in range(4):
+        new_state_row = []
+        for j in range(4):
+            new_state_row.append(BitVector(intVal=0, size=8))
+        new_state_mat.append(new_state_row)
+
+    for i in range(4):
+        for j in range(4):
+            for k in range(4):
+                prod = fixed_mat[i][k].gf_multiply_modular(state_mat[k][j], BitVector(intVal=0x11b, size=9), 8)
+                new_state_mat[i][j] ^= prod
+
+    return new_state_mat
+
+
+def AESRound(round_no, state_mat):
+    state_mat = substitutionByte(state_mat)
+    state_mat = shiftRow(state_mat)
+    if round_no != 10:
+        state_mat = mixColumn(state_mat)
+
+    return state_mat
+
+
+def readCipherText(state_mat):
+    cipher_text = ""
+    for j in range(4):
+        for i in range(4):
+            cipher_text += state_mat[i][j].get_bitvector_in_hex()
+
+    return cipher_text
+
+
+def key_scheduling():
+    key_list = []
+    key_list.append(hex_key)
+
+    prev_key = key_list[0]
+    r_c = BitVector(intVal=0x01, size=8)
+
+    for i in range(10):
+        prev_key = key_list[i]
+        g_w = g(prev_key[-8:], r_c)
+        res = BitVector(size = 0)
+        for j in range(4):
+            part = g_w ^ BitVector(hexstring=prev_key[j*8:j*8+8])
+            res += part;
+            g_w = part
+
+        new_key = res.get_bitvector_in_hex()
+        # print("key", i+1,":", new_key)
+        key_list.append(new_key)
+        r_c = r_c.gf_multiply_modular(BitVector(intVal=0x02, size=8), BitVector(intVal=0x11b, size=9), 8)
+
+    return key_list
+
+def printMatrix(mat):
+    for i in range(4):
+        for j in range(4):
+            print(mat[i][j].get_bitvector_in_hex(), end=" ")
+        print()
+
+
+
 hex_plain_text = plain_text.encode("utf-8").hex()
 hex_key = key.encode("utf-8").hex()
 
@@ -47,26 +168,26 @@ print("In HEX:", hex_plain_text)
 print("\nKey:")
 print("In ASCII:", key)
 print("In HEX:", hex_key)
+print()
 
-key_list = []
-key_list.append(hex_key)
+key_start = time.time()
+key_list = key_scheduling()
+key_end = time.time()
 
-prev_key = key_list[0]
-r_c = BitVector(intVal=0x01, size=8)
+## Encryption
+state_mat = constructInitStateMat(hex_plain_text)
+state_mat = addRoundKey(state_mat, hex_key)
 
-for i in range(10):
-    prev_key = key_list[i]
-    g_w = g(prev_key[-8:], r_c)
-    res = BitVector(size = 0)
-    for j in range(4):
-        part = g_w ^ BitVector(hexstring=prev_key[j*8:j*8+8])
-        res += part;
-        g_w = part
+for i in range(1, 11):
+    state_mat = AESRound(i, state_mat)
+    state_mat = addRoundKey(state_mat, key_list[i])
 
-    new_key = res.get_bitvector_in_hex()
-    print("key", i+1,":", new_key)
-    key_list.append(new_key)
-    r_c = r_c.gf_multiply_modular(BitVector(intVal=0x02, size=8), BitVector(intVal=0x11b, size=9), 8)
-# xor hex_plain_text and hex_key
-# xor_result = hex(int(hex_plain_text, 16) ^ int(hex_key, 16))[2:]
-# print(xor_result)
+cipher_text = readCipherText(state_mat)
+print("Cipher Text:")
+print("In Hex:", cipher_text)
+print("In ASCII:", bytearray.fromhex(cipher_text).decode('unicode-escape'))
+print()
+
+## Computation Time
+print("Execution time details:")
+print("Key Scheduling :", (key_end-key_start), "seconds")
