@@ -26,6 +26,32 @@ print("Enter key:")
 key = input()
 
 
+def inputValidation(text, key):
+    l = len(key)
+    if l < 32:
+        r = int((32-l)/2)
+        key = key + r*str(16-r)
+    elif l >= 32:
+        key = key[:32]
+
+    # print("key:", key)
+
+    l = len(text)
+    if l < 32:
+        r = int((32-l)/2)
+        text = text + r*str(16-r)
+    else:
+        text = [text[i:i+32] for i in range(0, len(text), 32)]
+        last_l = len(text[-1])
+        if last_l < 32:
+            r = int((32-last_l)/2)
+            text[-1] = text[-1] + r*str(16-r)
+        
+    # print("text:", text)
+
+    return text, key
+    
+
 def g(w, r_c):
     # print("got:", w)
     w = w[2:] + w[:2]
@@ -217,20 +243,28 @@ print("In ASCII:", key)
 print("In HEX:", hex_key)
 print()
 
+# Input Validation
+hex_plain_text_arr, hex_key = inputValidation(hex_plain_text, hex_key)
+
+# Key Scheduling
 key_start = time.time()
 key_list = key_scheduling()
 key_end = time.time()
 
 ## Encryption
 enc_start = time.time()
-state_mat = constructInitStateMat(hex_plain_text)
-state_mat = addRoundKey(state_mat, hex_key)
+cipher_text = ""
 
-for i in range(1, 11):
-    state_mat = AESRound(i, state_mat)
-    state_mat = addRoundKey(state_mat, key_list[i])
+for hex_plain_text in hex_plain_text_arr:
+    state_mat = constructInitStateMat(hex_plain_text)
+    state_mat = addRoundKey(state_mat, hex_key)
 
-cipher_text = readCipherText(state_mat)
+    for i in range(1, 11):
+        state_mat = AESRound(i, state_mat)
+        state_mat = addRoundKey(state_mat, key_list[i])
+
+    cipher_text += readCipherText(state_mat)
+
 enc_end = time.time()
 print("Cipher Text:")
 print("In Hex:", cipher_text)
