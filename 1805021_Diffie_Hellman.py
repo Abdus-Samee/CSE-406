@@ -1,7 +1,7 @@
 import random
 import math
 
-miller_rabin_rounds = 30
+miller_rabin_rounds = 15
 
 def millerRabinTest(n, k):
     if n <= 1 or n == 4:
@@ -36,31 +36,80 @@ def millerRabinTest(n, k):
 
 
 
+# def generateLargePrime(k):
+#     i = 1
+#     while True:
+#         n = random.randint(2**(k-1), 2**k - 1)
+#         # n = 2**(k) + i
+#         if n % 2 == 0:
+#             n += 1  # Make sure n is odd
+
+#         if millerRabinTest(n, miller_rabin_rounds):
+#             return n
+        
+#         i += 2
+
+
 def generateLargePrime(k):
     while True:
-        n = random.randint(2**(k-1), 2**k - 1)
-        if n % 2 == 0:
-            n += 1  # Make sure n is odd
-
+        q = random.randint(2**(k-1), 2**k-1)
+        q |= (1 << k - 1) | 1
+        while not millerRabinTest(q, miller_rabin_rounds):
+            q = random.randrange(2**(k-1), 2**k)
+            q |= (1 << k - 1) | 1
+        # print(q)
+        n = 2*q + 1
         if millerRabinTest(n, miller_rabin_rounds):
+            # print(n)
             return n
-        
-def findGenerator(p):
-    if not millerRabinTest(p, miller_rabin_rounds):
-        return None
 
+
+def pollards_rho(n):
+    if n == 1:
+        return []
+
+    def gcd(a, b):
+        while b != 0:
+            a, b = b, a % b
+        return a
+
+    def f(x):
+        return (x**2 + 1) % n
+
+    x = 2
+    y = 2
+    d = 1
+    factors = []
+
+    while d == 1:
+        x = f(x)
+        y = f(f(y))
+        d = gcd(abs(x - y), n)
+
+    if d == n:
+        # Factorization failed
+        return []
+    else:
+        # Recursively factorize the factors
+        factors.extend(pollards_rho(d))
+        factors.extend(pollards_rho(n // d))
+
+    return factors
+
+
+def test(p):
     factors = []
     phi = p - 1
     n = phi
 
-    for i in range(2, int(math.sqrt(n)) + 1):
-        if n % i == 0:
-            factors.append(i)
-            while n % i == 0:
-                n //= i
+    # factors = pollards_rho(n)
+    factors.append(2)
+    factors.append(n//2)
 
-    if n > 1:
-        factors.append(n)
+    # if n > 1:
+    #     factors.append(n)
+
+    print("factors done!!!!!")
 
     for g in range(2, p):
         is_generator = True
@@ -74,4 +123,75 @@ def findGenerator(p):
 
     return None
 
-print(findGenerator(7))
+
+
+def findGeneratorInRange(p, min, max):
+    factors = []
+    phi = p - 1
+    n = phi
+
+    for i in range(2, int(math.sqrt(n)) + 1):
+        if n % i == 0:
+            factors.append(i)
+            while n % i == 0:
+                n //= i
+        # print("done for i:", i)
+
+    if n > 1:
+        factors.append(n)
+
+    # print("factors done!!!!!")
+
+    for g in range(min, max+1):
+        is_generator = True
+        for factor in factors:
+            if pow(g, phi // factor, p) == 1:
+                is_generator = False
+                break
+
+        if is_generator:
+            return g
+
+    return None
+
+
+def validateMinMax(min, max, p):
+    if min >= p or max >= p or min > max:
+        return False
+
+    return True
+
+
+def modularExponentiation(g, a, p):
+    res = 1
+    g = g % p
+
+    while a > 0:
+        if a % 2 == 1:
+            res = (res * g) % p
+
+        a //= 2
+        g = (g * g) % p
+
+    return res
+
+
+# k = int(input("Enter the value of k: "))
+# large_prime = generateLargePrime(k)
+# print("Large prime:", large_prime)
+
+# mn, mx = map(int, input("Enter the values of min and max separated by a space: ").split())
+# while not validateMinMax(mn, mx, large_prime):
+#     print("Invalid range. Try again.")
+#     mn, mx = map(int, input("Enter the values of min and max separated by a space: ").split())
+
+# primitive_root = findGeneratorInRange(large_prime, mn, mx)
+
+# a = generateLargePrime(k/2)
+# b = generateLargePrime(k/2)
+
+# A = modularExponentiation(primitive_root, a, large_prime)
+# B = modularExponentiation(primitive_root, b, large_prime)
+# print("A:", A, "and B:", B, "are equal:", A == B)
+
+print(test((generateLargePrime(128))))
