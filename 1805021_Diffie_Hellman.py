@@ -1,7 +1,19 @@
 import random
 import math
+import time
 
 miller_rabin_rounds = 15
+trials = 5
+mx = {
+    128: 1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890,
+    192: 12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890,
+    256: 12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+}
+mn = {
+    128: 1234567890,
+    192: 12345678901234567890,
+    256: 1234567890123456789012345678901234567890
+}
 
 def millerRabinTest(n, k):
     if n <= 1 or n == 4:
@@ -18,7 +30,7 @@ def millerRabinTest(n, k):
     
     for _ in range(k):
         a = random.randint(2, n - 2)  # Random base in the range (2, n - 2)
-        x = pow(a, d, n)  # Compute a^d mod n
+        x = pow(a, d, n)  # a^d mod n
         
         if x == 1 or x == n - 1:
             continue
@@ -33,21 +45,6 @@ def millerRabinTest(n, k):
             return False
     
     return True
-
-
-
-# def generateLargePrime(k):
-#     i = 1
-#     while True:
-#         n = random.randint(2**(k-1), 2**k - 1)
-#         # n = 2**(k) + i
-#         if n % 2 == 0:
-#             n += 1  # Make sure n is odd
-
-#         if millerRabinTest(n, miller_rabin_rounds):
-#             return n
-        
-#         i += 2
 
 
 def generateLargePrime(k):
@@ -97,48 +94,13 @@ def pollards_rho(n):
     return factors
 
 
-def test(p):
-    factors = []
-    phi = p - 1
-    n = phi
-
-    # factors = pollards_rho(n)
-    factors.append(2)
-    factors.append(n//2)
-
-    # if n > 1:
-    #     factors.append(n)
-
-    print("factors done!!!!!")
-
-    for g in range(2, p):
-        is_generator = True
-        for factor in factors:
-            if pow(g, phi // factor, p) == 1:
-                is_generator = False
-                break
-
-        if is_generator:
-            return g
-
-    return None
-
-
-
 def findGeneratorInRange(p, min, max):
     factors = []
     phi = p - 1
     n = phi
 
-    for i in range(2, int(math.sqrt(n)) + 1):
-        if n % i == 0:
-            factors.append(i)
-            while n % i == 0:
-                n //= i
-        # print("done for i:", i)
-
-    if n > 1:
-        factors.append(n)
+    factors.append(2)
+    factors.append(n//2)
 
     # print("factors done!!!!!")
 
@@ -176,22 +138,63 @@ def modularExponentiation(g, a, p):
     return res
 
 
-# k = int(input("Enter the value of k: "))
-# large_prime = generateLargePrime(k)
-# print("Large prime:", large_prime)
+def computeSharedKey(A, b, p):
+    return modularExponentiation(A, b, p)
 
-# mn, mx = map(int, input("Enter the values of min and max separated by a space: ").split())
-# while not validateMinMax(mn, mx, large_prime):
-#     print("Invalid range. Try again.")
-#     mn, mx = map(int, input("Enter the values of min and max separated by a space: ").split())
 
-# primitive_root = findGeneratorInRange(large_prime, mn, mx)
+bit_length = [128, 192, 256]
 
-# a = generateLargePrime(k/2)
-# b = generateLargePrime(k/2)
+for k in bit_length:
+    time_large_prime_start = 0
+    time_large_prime_end = 0
+    time_primitive_root_start = 0
+    time_primitive_root_end = 0
+    time_a_start = 0
+    time_a_end = 0
+    time_A_start = 0
+    time_A_end = 0
+    time_shared_key_start = 0
+    time_shared_key_end = 0
 
-# A = modularExponentiation(primitive_root, a, large_prime)
-# B = modularExponentiation(primitive_root, b, large_prime)
-# print("A:", A, "and B:", B, "are equal:", A == B)
+    for t in range(trials):
+        time_large_prime_start += time.time()
+        large_prime = generateLargePrime(k)
+        time_large_prime_end += time.time()
 
-print(test((generateLargePrime(128))))
+        min, max = mn[k], mx[k]
+
+        time_primitive_root_start += time.time()
+        primitive_root = findGeneratorInRange(large_prime, min, max)
+        if(primitive_root == None):
+            print("No primitive root found in range", min, "to", max, "for", large_prime)
+            continue
+        time_primitive_root_end += time.time()
+
+        time_a_start += time.time()
+        a = generateLargePrime(k//2)
+        time_a_end += time.time()
+        b = generateLargePrime(k//2)
+
+        time_A_start += time.time()
+        A = modularExponentiation(primitive_root, a, large_prime)
+        time_A_end += time.time()
+        B = modularExponentiation(primitive_root, b, large_prime)
+
+        time_shared_key_start += time.time()
+        s1 = computeSharedKey(A, b, large_prime)
+        time_shared_key_end += time.time()
+        s2 = computeSharedKey(B, a, large_prime)
+
+    # Time-related performance
+    time_large_prime = (time_large_prime_end - time_large_prime_start) / trials
+    time_primitive_root = (time_primitive_root_end - time_primitive_root_start) / trials
+    time_a = (time_a_end - time_a_start) / trials
+    time_A = (time_A_end - time_A_start) / trials
+    time_shared_key = (time_shared_key_end - time_shared_key_start) / trials
+
+    print("Bit Length:", k)
+    print("Time taken for generating large prime:", time_large_prime, "seconds")
+    print("Time taken for finding primitive root:", time_primitive_root, "seconds")
+    print("Time taken for generating a:", time_a, "seconds")
+    print("Time taken for generating A:", time_A, "seconds")
+    print("Time taken for generating shared key:", time_shared_key, "seconds\n")
