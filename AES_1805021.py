@@ -21,34 +21,43 @@ Sbox = (
 )
 
 
-def inputValidation(text, key):
+def inputValidation(text, key, k):
+    # PKCS7 Padding
     l = len(key)
-    if l < 32:
-        r = int((32-l)/2)
-        key = key + r*str(16-r)
-    elif l >= 32:
-        key = key[:32]
+    limit = k//4
+    if l < limit:
+        r = int((limit-l)/2) # hex digits to pad
+        key = key + r*"00"
+    elif l >= limit:
+        key = key[:limit] # 32 hex characters => 16 bytes => 128 bits
 
-    # print("key:", key)
+    # print("key:", bytearray.fromhex(key).decode('unicode-escape'))
 
     l = len(text)
     if l < 32:
         r = int((32-l)/2)
-        text = text + r*str(16-r)
+        text_list = [text + r*"00"]
     else:
-        text = [text[i:i+32] for i in range(0, len(text), 32)]
-        last_l = len(text[-1])
+        text_list = [text[i:i+32] for i in range(0, len(text), 32)]
+        last_l = len(text_list[-1])
         if last_l < 32:
             r = int((32-last_l)/2)
-            text[-1] = text[-1] + r*str(16-r)
+            text_list[-1] = text_list[-1] + r*"00"
         
-    # print("text:", text)
+    # printTextList(text_list)
 
-    return text, key
+    return text_list, key
+
+
+def printTextList(l):
+    for i in range(len(l)):
+        print(bytearray.fromhex(l[i]).decode('unicode-escape'), end=" ")
+    print()
     
 
 def g(w, r_c):
     # print("got:", w)
+    w = w.get_bitvector_in_hex()
     w = w[2:] + w[:2]
     # print("shifted:", w)
     b_w = BitVector(hexstring=w)
@@ -171,17 +180,17 @@ def inverseMixColumn(state_mat):
     return new_state_mat
 
 
-def AESRound(key_list, round_no, state_mat, type="encrypt"):
+def AESRound(key_list, round_no, rounds, state_mat, type="encrypt"):
     if type == "encrypt":
         state_mat = substitutionByte(state_mat)
         state_mat = shiftRow(state_mat)
-        if round_no != 10:
+        if round_no != rounds:
             state_mat = mixColumn(state_mat)
     else:
         state_mat = inverseShiftRow(state_mat)
         state_mat = inverseSubstitutionByte(state_mat)
-        state_mat = addRoundKey(state_mat, key_list[10-round_no])
-        if round_no != 10:
+        state_mat = addRoundKey(state_mat, key_list[rounds-round_no])
+        if round_no != rounds:
             state_mat = inverseMixColumn(state_mat)
 
     return state_mat
@@ -196,30 +205,31 @@ def readCipherText(state_mat):
     return cipher_text
 
 
-def key_scheduling(hex_key):
-    key_list = []
-    key_list.append(hex_key)
-
-    prev_key = key_list[0]
+def key_scheduling(hex_key, k):
+    word_group = k//32
+    rounds = word_group + 6
+    total_words = (rounds+1)*4
+    key_words = [None for i in range(total_words)]
     r_c = BitVector(intVal=0x01, size=8)
 
-    print("first key:", prev_key)
+    for i in range(word_group):
+        key_words[i] = BitVector(hexstring=hex_key[i*32:i*32+32])
 
-    for i in range(10):
-        prev_key = key_list[i]
-        g_w = g(prev_key[-8:], r_c)
-        res = BitVector(size = 0)
-        for j in range(4):
-            part = g_w ^ BitVector(hexstring=prev_key[j*8:j*8+8])
-            res += part;
-            g_w = part
+    for i in range(word_group, total_words):
+        temp = key_words[i-1]
+        if i % word_group == 0:
+            temp = g(temp, r_c)
+            key_words[i] = key_words[i-word_group] ^ temp
+            r_c = r_c.gf_multiply_modular(BitVector(intVal=0x02, size=8), BitVector(intVal=0x11b, size=9), 8)
+        else:
+            key_words[i] = key_words[i-word_group] ^ key_words[i-1]
 
-        new_key = res.get_bitvector_in_hex()
-        # print("key", i+1,":", new_key)
-        key_list.append(new_key)
-        r_c = r_c.gf_multiply_modular(BitVector(intVal=0x02, size=8), BitVector(intVal=0x11b, size=9), 8)
+    key_list = []
+    for i in range(rounds+1):
+        key_list.append((key_words[i*4] + key_words[i*4+1] + key_words[i*4+2] + key_words[i*4+3]).get_bitvector_in_hex())
 
     return key_list
+
 
 def printMatrix(mat):
     for i in range(4):
@@ -228,15 +238,16 @@ def printMatrix(mat):
         print()
 
 
-def encrypt(hex_plain_text_arr, key_list):
+def encrypt(hex_plain_text_arr, key_list, k):
     cipher_text = ""
+    rounds = k//32 + 6
 
     for hex_plain_text in hex_plain_text_arr:
         state_mat = constructInitStateMat(hex_plain_text)
         state_mat = addRoundKey(state_mat, key_list[0])
 
-        for i in range(1, 11):
-            state_mat = AESRound(key_list, i, state_mat)
+        for i in range(1, rounds+1):
+            state_mat = AESRound(key_list, i, rounds, state_mat)
             state_mat = addRoundKey(state_mat, key_list[i])
 
         cipher_text += readCipherText(state_mat)
@@ -244,22 +255,30 @@ def encrypt(hex_plain_text_arr, key_list):
     return cipher_text
 
 
-def decrypt(cipher_text, key_list):
-    i = 10
-    state_mat = constructInitStateMat(cipher_text)
-    state_mat = addRoundKey(state_mat, key_list[i])
+def decrypt(cipher_text, key_list, k):
+    cipher_text_arr = [cipher_text[i:i+32] for i in range(0, len(cipher_text), 32)]
 
-    for j in range(1, 11):
-        state_mat = AESRound(key_list, j, state_mat, "decrypt")
-        i -= 1
+    decipher_text = ""
+    for cipher_text in cipher_text_arr:
+        i = k//32 + 6
+        rounds = k//32 + 6
+        state_mat = constructInitStateMat(cipher_text)
+        state_mat = addRoundKey(state_mat, key_list[i])
 
-    decipher_text = readCipherText(state_mat)
+        for j in range(1, rounds+1):
+            state_mat = AESRound(key_list, j, rounds, state_mat, "decrypt")
+            i -= 1
+
+        decipher_text += readCipherText(state_mat)
 
     return decipher_text
 
 
 
 if __name__ == "__main__":
+    k = 128
+    # k = 192
+    # k = 256
     print("Enter plain text:")
     plain_text = input()
     print("Enter key:")
@@ -276,16 +295,16 @@ if __name__ == "__main__":
     print()
 
     # Input Validation
-    hex_plain_text_arr, hex_key = inputValidation(hex_plain_text, hex_key)
+    hex_plain_text_arr, hex_key = inputValidation(hex_plain_text, hex_key, k)
 
     # Key Scheduling
     key_start = time.time()
-    key_list = key_scheduling(hex_key)
+    key_list = key_scheduling(hex_key, k)
     key_end = time.time()
 
     ## Encryption
     enc_start = time.time()
-    cipher_text = encrypt(hex_plain_text_arr, key_list)
+    cipher_text = encrypt(hex_plain_text_arr, key_list, k)
     enc_end = time.time()
     print("Cipher Text:")
     print("In Hex:", cipher_text)
@@ -294,7 +313,7 @@ if __name__ == "__main__":
 
     #Decryption
     dec_start = time.time()
-    decipher_text = decrypt(cipher_text, key_list)
+    decipher_text = decrypt(cipher_text, key_list, k)
     dec_end = time.time()
     print("Deciphered Text:")
     print("In Hex:", decipher_text)
