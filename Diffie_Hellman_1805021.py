@@ -17,10 +17,10 @@ mn = {
 
 def millerRabinTest(n, k):
     if n <= 1 or n == 4:
-        return False  # 0, 1, and even numbers are not prime
+        return False
     
     if n <= 3:
-        return True  # 2 and 3 are prime numbers
+        return True
     
     # Finding s and d such that n - 1 = 2^s * d
     s, d = 0, n - 1
@@ -29,14 +29,14 @@ def millerRabinTest(n, k):
         d //= 2
     
     for _ in range(k):
-        a = random.randint(2, n - 2)  # Random base in the range (2, n - 2)
+        a = random.randint(2, n - 2) 
         x = pow(a, d, n)  # a^d mod n
         
         if x == 1 or x == n - 1:
             continue
         
         for _ in range(s - 1):
-            x = pow(x, 2, n)  # Compute x^2 mod n
+            x = pow(x, 2, n)  # x^2 mod n
             if x == 1:
                 return False
             if x == n - 1:
@@ -142,59 +142,61 @@ def computeSharedKey(A, b, p):
     return modularExponentiation(A, b, p)
 
 
-bit_length = [128, 192, 256]
 
-for k in bit_length:
-    time_large_prime_start = 0
-    time_large_prime_end = 0
-    time_primitive_root_start = 0
-    time_primitive_root_end = 0
-    time_a_start = 0
-    time_a_end = 0
-    time_A_start = 0
-    time_A_end = 0
-    time_shared_key_start = 0
-    time_shared_key_end = 0
+if __name__ == "__main__":
+    bit_length = [128, 192, 256]
 
-    for t in range(trials):
-        time_large_prime_start += time.time()
-        large_prime = generateLargePrime(k)
-        time_large_prime_end += time.time()
+    for k in bit_length:
+        time_large_prime_start = 0
+        time_large_prime_end = 0
+        time_primitive_root_start = 0
+        time_primitive_root_end = 0
+        time_a_start = 0
+        time_a_end = 0
+        time_A_start = 0
+        time_A_end = 0
+        time_shared_key_start = 0
+        time_shared_key_end = 0
 
-        min, max = mn[k], mx[k]
+        for t in range(trials):
+            time_large_prime_start += time.time()
+            large_prime = generateLargePrime(k)
+            time_large_prime_end += time.time()
 
-        time_primitive_root_start += time.time()
-        primitive_root = findGeneratorInRange(large_prime, min, max)
-        if(primitive_root == None):
-            print("No primitive root found in range", min, "to", max, "for", large_prime)
-            continue
-        time_primitive_root_end += time.time()
+            min, max = mn[k], mx[k]
 
-        time_a_start += time.time()
-        a = generateLargePrime(k//2)
-        time_a_end += time.time()
-        b = generateLargePrime(k//2)
+            time_primitive_root_start += time.time()
+            primitive_root = findGeneratorInRange(large_prime, min, max)
+            if(primitive_root == None):
+                print("No primitive root found in range", min, "to", max, "for", large_prime)
+                continue
+            time_primitive_root_end += time.time()
 
-        time_A_start += time.time()
-        A = modularExponentiation(primitive_root, a, large_prime)
-        time_A_end += time.time()
-        B = modularExponentiation(primitive_root, b, large_prime)
+            time_a_start += time.time()
+            a = generateLargePrime(k//2)
+            time_a_end += time.time()
+            b = generateLargePrime(k//2)
 
-        time_shared_key_start += time.time()
-        s1 = computeSharedKey(A, b, large_prime)
-        time_shared_key_end += time.time()
-        s2 = computeSharedKey(B, a, large_prime)
+            time_A_start += time.time()
+            A = modularExponentiation(primitive_root, a, large_prime)
+            time_A_end += time.time()
+            B = modularExponentiation(primitive_root, b, large_prime)
 
-    # Time-related performance
-    time_large_prime = (time_large_prime_end - time_large_prime_start) / trials
-    time_primitive_root = (time_primitive_root_end - time_primitive_root_start) / trials
-    time_a = (time_a_end - time_a_start) / trials
-    time_A = (time_A_end - time_A_start) / trials
-    time_shared_key = (time_shared_key_end - time_shared_key_start) / trials
+            time_shared_key_start += time.time()
+            s1 = computeSharedKey(A, b, large_prime)
+            time_shared_key_end += time.time()
+            s2 = computeSharedKey(B, a, large_prime)
 
-    print("Bit Length:", k)
-    print("Time taken for generating large prime:", time_large_prime, "seconds")
-    print("Time taken for finding primitive root:", time_primitive_root, "seconds")
-    print("Time taken for generating a:", time_a, "seconds")
-    print("Time taken for generating A:", time_A, "seconds")
-    print("Time taken for generating shared key:", time_shared_key, "seconds\n")
+        # Time-related performance
+        time_large_prime = (time_large_prime_end - time_large_prime_start) / trials
+        time_primitive_root = (time_primitive_root_end - time_primitive_root_start) / trials
+        time_a = (time_a_end - time_a_start) / trials
+        time_A = (time_A_end - time_A_start) / trials
+        time_shared_key = (time_shared_key_end - time_shared_key_start) / trials
+
+        print("Bit Length:", k)
+        print("Time taken for generating large prime:", time_large_prime, "seconds")
+        print("Time taken for finding primitive root:", time_primitive_root, "seconds")
+        print("Time taken for generating a:", time_a, "seconds")
+        print("Time taken for generating A:", time_A, "seconds")
+        print("Time taken for generating shared key:", time_shared_key, "seconds\n")
