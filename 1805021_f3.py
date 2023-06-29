@@ -45,12 +45,12 @@ def ALICE():
         plain_text = input("Enter plain text: ")
         hex_plain_text = plain_text.encode("utf-8").hex()
 
-        hex_plain_text_arr, hex_key = inputValidation(hex_plain_text, hex_key)
-        print("Key after validation:", hex_key)
-        key_list = key_scheduling(hex_key)
+        hex_plain_text_arr, hex_key = inputValidation(hex_plain_text, hex_key, k)
+        print("Key after clinet-side validation:", hex_key)
+        key_list = key_scheduling(hex_key, k)
         # print("Generated key list:", key_list[5])
 
-        cipher_text = encrypt(hex_plain_text_arr, key_list)
+        cipher_text = encrypt(hex_plain_text_arr, key_list, k)
         print("Generated cipher Text in HEX:", cipher_text)
 
         s.sendall(cipher_text.encode())
