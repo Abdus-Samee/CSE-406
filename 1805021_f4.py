@@ -17,8 +17,8 @@ def BOB():
         p = data[0]
         g = data[1]
         A = data[2]
-        k  = len(p)
-        print("Received p, g, and A from Alice:", p, g, A)
+        k  = int(p).bit_length()
+        print("Received p, g, and A from Alice:", p, g, A, "OF LENGTH", k)
 
         p = int(p)
         g = int(g)
@@ -40,12 +40,12 @@ def BOB():
         cipher_text = client_socket.recv(1024).decode()
         print("Received cipher text from Alice:", cipher_text)
 
-        hex_key = inputValidation("", hex_key)[1]
-        print("Key after validation:", hex_key)
-        key_list = key_scheduling(hex_key)
+        hex_key = inputValidation("", hex_key, k)[1]
+        print("Key after server-side validation:", hex_key)
+        key_list = key_scheduling(hex_key, k)
         # print("Generated key list:", key_list[5])
 
-        decipher_text = decrypt(cipher_text, key_list)
+        decipher_text = decrypt(cipher_text, key_list, k)
 
         print("Decipher Text in HEX:", decipher_text)
         print("Decipher Text in ASCII:", bytearray.fromhex(decipher_text).decode('unicode-escape'))
