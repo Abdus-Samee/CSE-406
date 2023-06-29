@@ -20,11 +20,6 @@ Sbox = (
     0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16,
 )
 
-print("Enter plain text:")
-plain_text = input()
-print("Enter key:")
-key = input()
-
 
 def inputValidation(text, key):
     l = len(key)
@@ -176,7 +171,7 @@ def inverseMixColumn(state_mat):
     return new_state_mat
 
 
-def AESRound(round_no, state_mat, type="encrypt"):
+def AESRound(key_list, round_no, state_mat, type="encrypt"):
     if type == "encrypt":
         state_mat = substitutionByte(state_mat)
         state_mat = shiftRow(state_mat)
@@ -201,12 +196,14 @@ def readCipherText(state_mat):
     return cipher_text
 
 
-def key_scheduling():
+def key_scheduling(hex_key):
     key_list = []
     key_list.append(hex_key)
 
     prev_key = key_list[0]
     r_c = BitVector(intVal=0x01, size=8)
+
+    print("first key:", prev_key)
 
     for i in range(10):
         prev_key = key_list[i]
@@ -231,65 +228,81 @@ def printMatrix(mat):
         print()
 
 
+def encrypt(hex_plain_text_arr, key_list):
+    cipher_text = ""
 
-hex_plain_text = plain_text.encode("utf-8").hex()
-hex_key = key.encode("utf-8").hex()
+    for hex_plain_text in hex_plain_text_arr:
+        state_mat = constructInitStateMat(hex_plain_text)
+        state_mat = addRoundKey(state_mat, key_list[0])
 
-print("\nPlain Text:")
-print("In ASCII:", plain_text)
-print("In HEX:", hex_plain_text)
-print("\nKey:")
-print("In ASCII:", key)
-print("In HEX:", hex_key)
-print()
+        for i in range(1, 11):
+            state_mat = AESRound(key_list, i, state_mat)
+            state_mat = addRoundKey(state_mat, key_list[i])
 
-# Input Validation
-hex_plain_text_arr, hex_key = inputValidation(hex_plain_text, hex_key)
+        cipher_text += readCipherText(state_mat)
 
-# Key Scheduling
-key_start = time.time()
-key_list = key_scheduling()
-key_end = time.time()
+    return cipher_text
 
-## Encryption
-enc_start = time.time()
-cipher_text = ""
 
-for hex_plain_text in hex_plain_text_arr:
-    state_mat = constructInitStateMat(hex_plain_text)
-    state_mat = addRoundKey(state_mat, hex_key)
+def decrypt(cipher_text, key_list):
+    i = 10
+    state_mat = constructInitStateMat(cipher_text)
+    state_mat = addRoundKey(state_mat, key_list[i])
 
-    for i in range(1, 11):
-        state_mat = AESRound(i, state_mat)
-        state_mat = addRoundKey(state_mat, key_list[i])
+    for j in range(1, 11):
+        state_mat = AESRound(key_list, j, state_mat, "decrypt")
+        i -= 1
 
-    cipher_text += readCipherText(state_mat)
+    decipher_text = readCipherText(state_mat)
 
-enc_end = time.time()
-print("Cipher Text:")
-print("In Hex:", cipher_text)
-print("In ASCII:", bytearray.fromhex(cipher_text).decode('unicode-escape'))
-print()
+    return decipher_text
 
-#Decryption
-dec_start = time.time()
-i = 10
-state_mat = constructInitStateMat(cipher_text)
-state_mat = addRoundKey(state_mat, key_list[i])
 
-for j in range(1, 11):
-    state_mat = AESRound(j, state_mat, "decrypt")
-    i -= 1
 
-decipher_text = readCipherText(state_mat)
-dec_end = time.time()
-print("Deciphered Text:")
-print("In Hex:", decipher_text)
-print("In ASCII:", bytearray.fromhex(decipher_text).decode('unicode-escape'))
-print()
+if __name__ == "__main__":
+    print("Enter plain text:")
+    plain_text = input()
+    print("Enter key:")
+    key = input()
+    hex_plain_text = plain_text.encode("utf-8").hex()
+    hex_key = key.encode("utf-8").hex()
 
-## Computation Time
-print("Execution time details:")
-print("Key Scheduling :", (key_end-key_start), "seconds")
-print("Encryption Time:", (enc_end-enc_start), "seconds")
-print("Decryption Time:", (dec_end-dec_start), "seconds")
+    print("\nPlain Text:")
+    print("In ASCII:", plain_text)
+    print("In HEX:", hex_plain_text)
+    print("\nKey:")
+    print("In ASCII:", key)
+    print("In HEX:", hex_key)
+    print()
+
+    # Input Validation
+    hex_plain_text_arr, hex_key = inputValidation(hex_plain_text, hex_key)
+
+    # Key Scheduling
+    key_start = time.time()
+    key_list = key_scheduling(hex_key)
+    key_end = time.time()
+
+    ## Encryption
+    enc_start = time.time()
+    cipher_text = encrypt(hex_plain_text_arr, key_list)
+    enc_end = time.time()
+    print("Cipher Text:")
+    print("In Hex:", cipher_text)
+    print("In ASCII:", bytearray.fromhex(cipher_text).decode('unicode-escape'))
+    print()
+
+    #Decryption
+    dec_start = time.time()
+    decipher_text = decrypt(cipher_text, key_list)
+    dec_end = time.time()
+    print("Deciphered Text:")
+    print("In Hex:", decipher_text)
+    print("In ASCII:", bytearray.fromhex(decipher_text).decode('unicode-escape'))
+    print()
+
+    ## Computation Time
+    print("Execution time details:")
+    print("Key Scheduling :", (key_end-key_start), "seconds")
+    print("Encryption Time:", (enc_end-enc_start), "seconds")
+    print("Decryption Time:", (dec_end-dec_start), "seconds")
